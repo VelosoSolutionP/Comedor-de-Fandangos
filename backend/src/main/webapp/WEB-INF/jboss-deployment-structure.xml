@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jboss-deployment-structure>
+    <deployment>
+        <exclusions>
+            <!-- O WAR traz o proprio jackson via jjwt-jackson; evita colisao
+                 com o modulo do WildFly. -->
+            <module name="org.jboss.resteasy.resteasy-jackson2-provider"/>
+        </exclusions>
+        <dependencies>
+            <module name="org.postgresql" services="import" optional="true"/>
+        </dependencies>
+    </deployment>
+</jboss-deployment-structure>

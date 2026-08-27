@@ -1,0 +1,73 @@
+# ============================================================================
+#  Configuracao do WildFly aplicada em tempo de BUILD (embedded server).
+#  Nada disso roda no boot do container: a imagem ja nasce configurada, entao
+#  o startup e so subir o servidor e fazer deploy.
+# ============================================================================
+embed-server --server-config=standalone.xml --std-out=echo
+
+# ---------------------------------------------------------------- driver JDBC
+module add --name=org.postgresql \
+           --resources=/opt/drivers/postgresql.jar \
+           --dependencies=javax.api,javax.transaction.api
+
+/subsystem=datasources/jdbc-driver=postgresql:add( \
+    driver-name=postgresql, \
+    driver-module-name=org.postgresql, \
+    driver-class-name=org.postgresql.Driver, \
+    driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)
+
+# ---------------------------------------------------------------- datasource
+# Pool dimensionado junto com o max_connections do Postgres (100):
+# 2 nos * 50 = 100. Passar disso so troca fila da app por fila do banco.
+data-source add \
+    --name=FandangosDS \
+    --jndi-name=java:jboss/datasources/FandangosDS \
+    --driver-name=postgresql \
+    --connection-url=${env.DB_URL:jdbc:postgresql://db:5432/fandangos} \
+    --user-name=${env.DB_USER:fandangos} \
+    --password=${env.DB_PASS:fandangos} \
+    --min-pool-size=10 \
+    --initial-pool-size=10 \
+    --max-pool-size=50 \
+    --pool-prefill=true \
+    --prepared-statements-cache-size=128 \
+    --share-prepared-statements=true \
+    --track-statements=false \
+    --statistics-enabled=false \
+    --background-validation=true \
+    --background-validation-millis=30000 \
+    --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker \
+    --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter \
+    --blocking-timeout-wait-millis=3000 \
+    --idle-timeout-minutes=5 \
+    --query-timeout=15 \
+    --enabled=true
+
+# ---------------------------------------------------------------- undertow
+# Fila de IO. workers = 2x cores para carga com I/O de banco.
+/subsystem=io/worker=default:write-attribute(name=io-threads,value=8)
+/subsystem=io/worker=default:write-attribute(name=task-max-threads,value=64)
+
+# Nao anunciar a versao do servidor em cada resposta.
+/subsystem=undertow/server=default-server/host=default-host/setting=http-invoker:remove()
+/subsystem=undertow:write-attribute(name=statistics-enabled,value=false)
+
+# Compressao no proprio WildFly, caso alguem bata direto na 8080 sem o nginx.
+/subsystem=undertow/configuration=filter/gzip=gzipFilter:add()
+/subsystem=undertow/server=default-server/host=default-host/filter-ref=gzipFilter:add( \
+    predicate="exists('%{o,Content-Type}') and regex(pattern='(?:application/json|text/.*)', value=%{o,Content-Type}) and max-content-size[512]")
+
+# ---------------------------------------------------------------- logging
+# Console em INFO; SQL do Hibernate calado (o log e o gargalo escondido).
+/subsystem=logging/console-handler=CONSOLE:write-attribute(name=level,value=INFO)
+/subsystem=logging/logger=org.hibernate.SQL:add(level=WARN)
+/subsystem=logging/logger=org.hibernate.type:add(level=WARN)
+/subsystem=logging/logger=org.jboss.as.config:add(level=WARN)
+/subsystem=logging/logger=br.com.fandangos:add(level=INFO)
+
+# ---------------------------------------------------------------- limpeza
+# Subsistemas que este sistema nao usa: menos memoria, boot mais rapido.
+/subsystem=webservices:remove()
+/subsystem=mail:remove()
+
+stop-embedded-server

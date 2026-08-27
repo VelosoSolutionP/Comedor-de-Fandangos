@@ -1,0 +1,135 @@
+# =============================================================================
+#  comedores-de-fandangos
+#  4 servicos: postgres, redis, wildfly (JDK 11) e nginx.
+#  Subir tudo:  docker compose up -d --build
+#  Acessar:     http://localhost:8081
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------- Postgres
+  db:
+    image: postgres:14-alpine
+    container_name: fandangos-db
+    environment:
+      POSTGRES_DB: fandangos
+      POSTGRES_USER: fandangos
+      POSTGRES_PASSWORD: fandangos
+      # checksum de pagina desligado no dev: menos CPU por escrita
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: America/Sao_Paulo
+    # Tuning para container de 1 GB. Em producao, ajuste pela RAM real.
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB           # ~25% da RAM do container
+      - -c
+      - effective_cache_size=768MB     # dica ao planner sobre o cache do SO
+      - -c
+      - work_mem=8MB                   # ordenacao/hash por operacao
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - random_page_cost=1.1           # SSD: seek custa quase o mesmo que leitura
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - default_statistics_target=100
+      - -c
+      - jit=off                        # consultas OLTP curtas nao pagam o JIT
+      - -c
+      - log_min_duration_statement=500 # loga so o que passar de 500ms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # scripts rodam UMA vez, na criacao do volume, em ordem alfabetica
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fandangos -d fandangos"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------- Redis
+  redis:
+    image: redis:7-alpine
+    container_name: fandangos-redis
+    command:
+      - redis-server
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru          # cache puro: pode descartar a chave mais fria
+      - --save
+      - ""                   # sem persistencia: se perder, reconstroi do banco
+      - --appendonly
+      - "no"
+      - --tcp-keepalive
+      - "60"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------- WildFly
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fandangos-app
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/fandangos
+      DB_USER: fandangos
+      DB_PASS: fandangos
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_ENABLED: "true"
+      # >= 32 bytes (HS256). TROQUE ISTO EM PRODUCAO.
+      JWT_SECRET: "troque-este-segredo-em-producao-com-32-bytes-ou-mais"
+      JWT_TTL_MIN: "120"
+      # consulta de CNPJ na BrasilAPI; "false" deixa so a base local
+      LOOKUP_EXTERNO: "true"
+      TZ: America/Sao_Paulo
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"    # API direta (debug)
+      - "9990:9990"    # console de administracao
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 120s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------- nginx
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fandangos-web
+    depends_on:
+      - app
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local

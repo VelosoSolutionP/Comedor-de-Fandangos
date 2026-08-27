@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence
+                                 http://xmlns.jcp.org/xml/ns/persistence/persistence_2_2.xsd"
+             version="2.2">
+
+    <persistence-unit name="fandangosPU" transaction-type="JTA">
+        <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+        <jta-data-source>java:jboss/datasources/FandangosDS</jta-data-source>
+
+        <class>br.com.fandangos.domain.Cliente</class>
+        <class>br.com.fandangos.domain.Usuario</class>
+        <exclude-unlisted-classes>true</exclude-unlisted-classes>
+
+        <shared-cache-mode>NONE</shared-cache-mode>
+        <validation-mode>NONE</validation-mode>
+
+        <properties>
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQL10Dialect"/>
+
+            <!-- O schema e dono do banco: DDL vem do db/init, nunca do Hibernate. -->
+            <property name="hibernate.hbm2ddl.auto" value="none"/>
+
+            <!-- Log de SQL desligado. Em producao isso e o maior custo escondido. -->
+            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.format_sql" value="false"/>
+            <property name="hibernate.generate_statistics" value="false"/>
+
+            <!-- Escrita em lote -->
+            <property name="hibernate.jdbc.batch_size" value="50"/>
+            <property name="hibernate.order_inserts" value="true"/>
+            <property name="hibernate.order_updates" value="true"/>
+            <property name="hibernate.jdbc.batch_versioned_data" value="true"/>
+
+            <!-- Leitura: 1 round-trip para a pagina inteira do grid -->
+            <property name="hibernate.jdbc.fetch_size" value="200"/>
+            <property name="hibernate.default_batch_fetch_size" value="32"/>
+
+            <!-- Cache de 2o nivel desligado: quem cacheia aqui e o Redis,
+                 compartilhado entre os nos, nao a heap de um no so. -->
+            <property name="hibernate.cache.use_second_level_cache" value="false"/>
+            <property name="hibernate.cache.use_query_cache" value="false"/>
+
+            <!-- Segura o autocommit ate o primeiro statement: economiza um
+                 round-trip por transacao somente-leitura. -->
+            <property name="hibernate.connection.provider_disables_autocommit" value="true"/>
+
+            <!-- Sem scan de classes: a lista acima ja e explicita. Boot mais rapido. -->
+            <property name="hibernate.archive.autodetection" value="none"/>
+
+            <property name="hibernate.jdbc.time_zone" value="America/Sao_Paulo"/>
+        </properties>
+    </persistence-unit>
+</persistence>

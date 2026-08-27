@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="comedores-de-fandangos - gestao de clientes">
+    <title>comedores-de-fandangos</title>
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#127871;</text></svg>">
+    <link rel="stylesheet" href="app/styles.css">
+
+    <!-- vendors baixados no build da imagem: nada de CDN em producao -->
+    <script src="vendor/angular.min.js" defer></script>
+    <script src="vendor/axios.min.js" defer></script>
+
+    <!-- core -->
+    <script src="app/core/modulo.js" defer></script>
+    <script src="app/core/fd-react.js" defer></script>
+    <script src="app/core/store.js" defer></script>
+    <script src="app/core/http.js" defer></script>
+    <script src="app/core/mask.js" defer></script>
+    <script src="app/core/validators.js" defer></script>
+    <script src="app/core/router.js" defer></script>
+
+    <!-- componentes -->
+    <script src="app/components/app-root.js" defer></script>
+    <script src="app/components/toast-host.js" defer></script>
+    <script src="app/components/kpi-card.js" defer></script>
+    <script src="app/components/bar-chart.js" defer></script>
+    <script src="app/components/data-grid.js" defer></script>
+    <script src="app/components/campo-form.js" defer></script>
+
+    <!-- rotas -->
+    <script src="app/routes/login.js" defer></script>
+    <script src="app/routes/dashboard.js" defer></script>
+    <script src="app/routes/clientes.js" defer></script>
+    <script src="app/routes/cliente-form.js" defer></script>
+    <script src="app/routes/nao-encontrada.js" defer></script>
+
+    <!-- bootstrap (por ultimo: depende de todos acima) -->
+    <script src="app/main.js" defer></script>
+</head>
+<body>
+    <div id="raiz">
+        <div class="boot">carregando comedores-de-fandangos...</div>
+    </div>
+</body>
+</html>

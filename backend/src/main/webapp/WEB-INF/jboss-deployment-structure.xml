@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jboss-deployment-structure>
     <deployment>
-        <exclusions>
-            <!-- O WAR traz o proprio jackson via jjwt-jackson; evita colisao
-                 com o modulo do WildFly. -->
-            <module name="org.jboss.resteasy.resteasy-jackson2-provider"/>
-        </exclusions>
+        <!--
+          NAO excluir o resteasy-jackson2-provider aqui.
+
+          Excluindo o modulo, o WildFly fica sem NENHUM provider de JSON: o
+          JSON-B nao assume sozinho o lugar dele, e toda resposta
+          application/json morre com NoMessageBodyWriterFoundFailure.
+
+          A escolha entre Jackson e JSON-B e feita no web.xml, pelo
+          context-param resteasy.preferJacksonOverJsonB=false. Este projeto
+          usa JSON-B porque os DTOs anotam @JsonbProperty para encurtar as
+          chaves do payload.
+        -->
         <dependencies>
             <module name="org.postgresql" services="import" optional="true"/>
         </dependencies>

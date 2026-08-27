@@ -17,7 +17,10 @@
         <validation-mode>NONE</validation-mode>
 
         <properties>
-            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQL10Dialect"/>
+            <!-- WildFly 26.1.3 traz Hibernate 5.3.28: o dialeto mais novo
+                 disponivel e o 95. PostgreSQL10Dialect so existe a partir do
+                 Hibernate 5.4 e faz o persistence unit falhar no deploy. -->
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQL95Dialect"/>
 
             <!-- O schema e dono do banco: DDL vem do db/init, nunca do Hibernate. -->
             <property name="hibernate.hbm2ddl.auto" value="none"/>

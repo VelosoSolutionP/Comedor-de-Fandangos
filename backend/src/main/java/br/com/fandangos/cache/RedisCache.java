@@ -62,8 +62,9 @@ public class RedisCache {
         cfg.setBlockWhenExhausted(true);
         cfg.setMaxWaitMillis(150L);              // prefere MISS a fila de espera
 
-        this.pool = new JedisPool(cfg, host, port,
-                /* connectTimeout */ 300, /* soTimeout */ 300);
+        // timeout unico (conexao e leitura). Curto de proposito: e melhor
+        // devolver MISS em 300ms do que segurar o request esperando o cache.
+        this.pool = new JedisPool(cfg, host, port, 300);
         LOG.info("[cache] redis " + host + ":" + port);
     }
 

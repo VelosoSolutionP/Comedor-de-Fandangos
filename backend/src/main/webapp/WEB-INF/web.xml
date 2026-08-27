@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                             http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+
+    <!--
+      Com Jackson e JSON-B no classpath, o RESTEasy prefere Jackson por
+      padrao - e Jackson ignora @JsonbProperty, entao o payload voltaria com
+      as chaves longas ("usuario" em vez de "u"). Este flag inverte a
+      preferencia e mantem o contrato curto da API.
+    -->
+    <context-param>
+        <param-name>resteasy.preferJacksonOverJsonB</param-name>
+        <param-value>false</param-value>
+    </context-param>
+
+</web-app>

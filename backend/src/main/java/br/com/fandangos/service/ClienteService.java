@@ -12,7 +12,7 @@ import javax.ejb.Stateless;
 import javax.ejb.TransactionAttribute;
 import javax.ejb.TransactionAttributeType;
 import javax.inject.Inject;
-import javax.persistence.PersistenceException;
+import javax.ejb.EJBException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,7 +71,12 @@ public class ClienteService {
             cache.invalidar("dash");                    // KPIs mudaram
             cache.del("doc:" + dto.getDocumento());     // lookup daquele documento mudou
             return id;
-        } catch (PersistenceException e) {
+        } catch (RuntimeException e) {
+            // RuntimeException, nao PersistenceException: o ClienteRepository e
+            // outro EJB, e o container embrulha excecao de sistema em
+            // EJBTransactionRolledbackException ao cruzar a fronteira do bean.
+            // Filtrar por PersistenceException aqui deixaria passar direto e
+            // todo erro de negocio do banco viraria 500.
             throw traduzir(e, dto);
         }
     }
@@ -136,7 +141,7 @@ public class ClienteService {
     }
 
     /** Converte SQLSTATE da procedure em erro de negocio com status HTTP certo. */
-    private RegraException traduzir(PersistenceException e, ClienteDTO dto) {
+    private RegraException traduzir(RuntimeException e, ClienteDTO dto) {
         final String estado = sqlState(e);
         if (estado == null) {
             throw e;
@@ -157,17 +162,35 @@ public class ClienteService {
         }
     }
 
+    /**
+     * Procura o SQLSTATE na cadeia de causas.
+     *
+     * A cadeia real e mais funda do que parece:
+     *   EJBTransactionRolledbackException
+     *     -> PersistenceException
+     *       -> ConstraintViolationException (Hibernate)
+     *         -> PSQLException  <- o SQLSTATE esta aqui
+     *
+     * EJBException guarda a causa em getCausedByException(), que nem sempre
+     * aparece em getCause(); por isso os dois caminhos sao percorridos.
+     */
     private static String sqlState(Throwable t) {
-        for (Throwable c = t; c != null; c = c.getCause()) {
+        Throwable c = t;
+        for (int nivel = 0; c != null && nivel < 12; nivel++) {
             if (c instanceof SQLException) {
                 final String s = ((SQLException) c).getSQLState();
                 if (s != null && !s.isEmpty()) {
                     return s;
                 }
             }
-            if (c.getCause() == c) {
+            Throwable proxima = c.getCause();
+            if (proxima == null && c instanceof EJBException) {
+                proxima = ((EJBException) c).getCausedByException();
+            }
+            if (proxima == c) {
                 break;
             }
+            c = proxima;
         }
         return null;
     }

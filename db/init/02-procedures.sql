@@ -77,6 +77,10 @@ $fn$ LANGUAGE plpgsql IMMUTABLE STRICT;
 -- Todos os parametros opcionais entram como TEXT e string vazia significa
 -- "ausente". Isso mantem a fronteira JDBC livre de NULL - passar NULL em
 -- native query do Hibernate exige tipo explicito e quebra facil.
+-- O tipo de retorno mudou (CHAR -> VARCHAR), e CREATE OR REPLACE nao troca
+-- assinatura: precisa dropar antes.
+DROP FUNCTION IF EXISTS fn_cliente_grid(TEXT, TEXT, TEXT, INT, INT);
+
 CREATE OR REPLACE FUNCTION fn_cliente_grid(
     p_q   TEXT DEFAULT '',
     p_uf  TEXT DEFAULT '',
@@ -88,8 +92,11 @@ RETURNS TABLE (
     id        BIGINT,
     nome      VARCHAR(150),
     documento VARCHAR(14),
-    uf        CHAR(2),
-    tipo      CHAR(1),
+    -- VARCHAR, nao CHAR: o Hibernate mapeia java.sql.Types.CHAR para
+    -- Character em native query e a UF chegaria no front como "S" no lugar
+    -- de "SP". Com VARCHAR vem String, que e o que o grid espera.
+    uf        VARCHAR(2),
+    tipo      VARCHAR(1),
     situacao  SMALLINT,
     total     BIGINT
 ) AS $fn$
@@ -106,7 +113,8 @@ BEGIN
     IF v_q IS NOT NULL AND v_digit IS NOT NULL AND length(v_digit) = length(v_q) THEN
         -- caminho rapido: prefixo de documento no indice unico
         RETURN QUERY
-            SELECT c.id, c.nome, c.documento, c.uf, c.tipo, c.situacao,
+            SELECT c.id, c.nome, c.documento,
+                   c.uf::VARCHAR(2), c.tipo::VARCHAR(1), c.situacao,
                    count(*) OVER ()::BIGINT
               FROM cliente c
              WHERE c.documento LIKE v_digit || '%'
@@ -116,7 +124,8 @@ BEGIN
              LIMIT p_lim OFFSET p_off;
     ELSE
         RETURN QUERY
-            SELECT c.id, c.nome, c.documento, c.uf, c.tipo, c.situacao,
+            SELECT c.id, c.nome, c.documento,
+                   c.uf::VARCHAR(2), c.tipo::VARCHAR(1), c.situacao,
                    count(*) OVER ()::BIGINT
               FROM cliente c
              WHERE (v_q   IS NULL OR c.busca LIKE '%' || unaccent(lower(v_q)) || '%')

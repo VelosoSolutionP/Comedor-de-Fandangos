@@ -22,3 +22,6 @@ Thumbs.db
 # runtime
 *.log
 .env
+
+# runtime portatil local (JDK, Maven, Postgres, WildFly)
+.local/

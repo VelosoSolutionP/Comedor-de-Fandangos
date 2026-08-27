@@ -55,14 +55,15 @@ data-source add \
 # Compressao no proprio WildFly, caso alguem bata direto na 8080 sem o nginx.
 /subsystem=undertow/configuration=filter/gzip=gzipFilter:add()
 /subsystem=undertow/server=default-server/host=default-host/filter-ref=gzipFilter:add( \
-    predicate="exists('%{o,Content-Type}') and regex(pattern='(?:application/json|text/.*)', value=%{o,Content-Type}) and max-content-size[512]")
+    predicate="exists('%{o,Content-Type}') and regex(pattern='(?:application/json|text/.*)', value=%{o,Content-Type}) and max-content-size(512)")
 
 # ---------------------------------------------------------------- logging
 # Console em INFO; SQL do Hibernate calado (o log e o gargalo escondido).
 /subsystem=logging/console-handler=CONSOLE:write-attribute(name=level,value=INFO)
 /subsystem=logging/logger=org.hibernate.SQL:add(level=WARN)
 /subsystem=logging/logger=org.hibernate.type:add(level=WARN)
-/subsystem=logging/logger=org.jboss.as.config:add(level=WARN)
+# este logger ja vem no standalone.xml padrao: write-attribute, nao add
+/subsystem=logging/logger=org.jboss.as.config:write-attribute(name=level,value=WARN)
 /subsystem=logging/logger=br.com.fandangos:add(level=INFO)
 
 # ---------------------------------------------------------------- limpeza

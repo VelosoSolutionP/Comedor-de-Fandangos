@@ -139,6 +139,11 @@
     /**
      * Registra um componente.
      *
+     * NOME: nunca comece com "data-" ou "x-". O compilador do AngularJS
+     * remove esses prefixos antes de resolver a diretiva, entao um
+     * <data-grid> vira uma busca por "grid", nao casa com nada e o
+     * componente some do DOM sem erro nenhum no console.
+     *
      *   FdReact.componente('kpi-card', {
      *       props: ['titulo', 'valor'],        // one-way binding '<'
      *       eventos: ['aoClicar'],             // callback '&'

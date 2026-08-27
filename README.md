@@ -60,9 +60,11 @@ backend/           WAR Jakarta EE 8 (javax.*) para WildFly
   docker/          script de configuração do WildFly
 frontend/
   app/core/        fd-react (hooks), router, http (axios), máscaras, validações
-  app/components/  kpi-card, bar-chart, data-grid, campo-form, toast, app-root
+  app/components/  kpi-card, bar-chart, fd-grid, campo-form, toast, app-root
   app/routes/      login, dashboard, clientes, cliente-form, 404
-  test/            testes dos validadores (node, sem dependências)
+  test/            validadores (node puro) + e2e do app (jsdom)
+db/test/           smoke das procedures
+scripts/           smoke da API, roda-tudo, subida local sem Docker
 ```
 
 ---
@@ -167,16 +169,48 @@ curl -s localhost:8081/api/lookup/52998224725 -H "Authorization: Bearer $TOKEN"
 
 ## Testes
 
-```bash
-# validadores do front (CPF/CNPJ, máscaras, regras de formulário) - 55 asserts
-node frontend/test/validadores.test.js
+Cinco suítes, **156 verificações**, todas executadas contra banco e servidor
+de verdade:
 
-# testes do backend (rodam também no build da imagem)
-docker compose run --rm --entrypoint mvn app -f /src/pom.xml test
+```bash
+./scripts/testar-tudo.sh      # roda tudo e para na primeira falha
 ```
 
-O `DocumentosTest` cobre CPF/CNPJ válidos e inválidos, dígitos repetidos,
-tamanhos errados, entrada nula e as máscaras.
+| # | Suíte | O que cobre | Asserts |
+|---|-------|-------------|---------|
+| 1 | `DocumentosTest` (JUnit) | DV de CPF/CNPJ, repetidos, tamanhos, nulo, máscara | 10 |
+| 2 | `frontend/test/validadores.test.js` | validadores e máscaras do front, espelhando o Java | 55 |
+| 3 | `db/test/smoke.sql` | schema, procedures, triggers, lock otimista, SQLSTATEs, BCrypt | 22 |
+| 4 | `scripts/smoke-api.sh` | todos os endpoints, 401/400/404/409, ETag/304 | 34 |
+| 5 | `frontend/test/app.e2e.js` | app real em jsdom: login → dashboard → grid → formulário → logout | 35 |
+
+As suítes 3, 4 e 5 precisam da stack no ar. A 5 precisa de `jsdom`
+(`npm install jsdom`; use `NODE_PATH` se instalar fora do projeto).
+
+Individualmente:
+
+```bash
+cd backend && mvn test -Dtest=DocumentosTest
+node frontend/test/validadores.test.js
+psql -U fandangos -d fandangos -v ON_ERROR_STOP=1 -f db/test/smoke.sql
+./scripts/smoke-api.sh
+NODE_PATH=<dir-do-jsdom> node frontend/test/app.e2e.js
+```
+
+## Rodar sem Docker
+
+Em máquina sem WSL/Hyper-V (o Docker Desktop não sobe o engine), dá para
+rodar a mesma stack com binários portáteis, sem instalador e sem admin:
+
+```powershell
+.\.localaixar.ps1              # JDK 11, Maven, PostgreSQL e WildFly em .local.\scripts\local-subir.ps1 -Build # compila, faz deploy e sobe o WildFly
+node scripts\local-web.js        # serve o front e faz o proxy de /api (papel do nginx)
+```
+
+O banco precisa ser iniciado e populado uma vez (`initdb`, `pg_ctl start`, e os
+três scripts de `db/init` na ordem). O Redis é opcional: com
+`REDIS_ENABLED=false` o cache vira MISS e o sistema segue funcionando — é o
+mesmo caminho degradado que o circuit breaker usa quando o Redis cai.
 
 ---
 

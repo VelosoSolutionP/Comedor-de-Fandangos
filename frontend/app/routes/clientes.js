@@ -37,10 +37,10 @@
             '            ng-disabled="!v.temFiltro">Limpar</button>',
             '  </div>',
 
-            '  <data-grid itens="v.itens" total="v.total" pagina="v.pagina" tamanho="v.tamanho"',
+            '  <fd-grid itens="v.itens" total="v.total" pagina="v.pagina" tamanho="v.tamanho"',
             '             carregando="v.carregando"',
             '             ao-abrir="v.abrir($e)" ao-excluir="v.excluir($e)"',
-            '             ao-paginar="v.paginar($e)"></data-grid>',
+            '             ao-paginar="v.paginar($e)"></fd-grid>',
             '</div>'
         ].join(''),
 

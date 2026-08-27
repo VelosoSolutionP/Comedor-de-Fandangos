@@ -3,11 +3,11 @@
 | Campo       | Valor |
 |-------------|-------|
 | Repositório | https://github.com/VelosoSolutionP/Comedor-de-Fandangos |
-| Branch      | `main` |
-| Commit      | `df0aad2` — *feat: sistema comedores-de-fandangos (JDK 11 + WildFly + Postgres + Redis)* |
+| Branch      | `fix/fabiano.veloso/001` (a partir de `origin/main`) |
+| Commits     | `df0aad2` entrega inicial · `d758908` correcao de 7 bugs + 156 testes |
 | Data        | 27/08/2026 |
 | Escopo      | Backend + Frontend + Banco + Infra (entrega inicial completa) |
-| Volume      | 75 arquivos, 6.826 linhas |
+| Volume      | 75 arquivos na entrega inicial + 19 alterados na correcao |
 
 > **Redmine não integrado neste ambiente.** `vsanalista_template` retornou
 > *"nenhum tracker habilitado — configure integrations.redmine"*. Esta doc fica
@@ -132,7 +132,7 @@ jjwt 0.11.5, jBCrypt 0.4. WAR `fandangos.war` no context root `/`.
 comparar referências em vez de reavaliar expressões.
 
 **Estrutura:** `core/` (hooks, router, http, mask, validators, store),
-`components/` (app-root, kpi-card, bar-chart, data-grid, campo-form, toast-host),
+`components/` (app-root, kpi-card, bar-chart, fd-grid, campo-form, toast-host),
 `routes/` (login, dashboard, clientes, cliente-form, 404).
 
 - Roteador por hash próprio com guard de sessão e destino pendente.
@@ -171,65 +171,86 @@ Healthcheck em todos. Aplicação em `http://localhost:8081`.
 
 ---
 
-## 6. Testes
+## 6. Testes — ATUALIZADO (execução real)
 
-| Suíte | Status |
-|-------|--------|
-| `frontend/test/validadores.test.js` — 55 asserts (DV de CPF/CNPJ, máscaras, conversores, regras de formulário) | **executado, 55/55 verdes** |
-| `backend/.../DocumentosTest.java` — 9 casos JUnit | **escrito, NÃO executado** (ver impedimento I-1) |
+A stack foi levantada **sem Docker**, com binários portáteis em `.local/`
+(Temurin JDK 11.0.25, Maven 3.9.9, PostgreSQL 14.13, WildFly 26.1.3), já que
+esta estação não tem WSL. Tudo abaixo rodou contra banco e servidor de verdade.
 
-Verificações estáticas executadas:
+| Suíte | Verificações | Resultado |
+|-------|-------------:|-----------|
+| `DocumentosTest` (JUnit) | 10 | **10/10** |
+| `frontend/test/validadores.test.js` | 55 | **55/55** |
+| `db/test/smoke.sql` | 22 | **22/22** |
+| `scripts/smoke-api.sh` | 34 | **34/34** |
+| `frontend/test/app.e2e.js` (jsdom) | 35 | **35/35** |
+| **Total** | **156** | **156/156** |
 
-- 19 arquivos JS — `node --check`, todos válidos.
-- 35 arquivos Java — delimitadores balanceados, `package` coerente com o
-  diretório, nome do tipo coerente com o arquivo.
-- `docker-compose.yml` — YAML válido, 4 serviços.
-- SQL — dollar-quotes balanceadas nos 3 scripts.
+Reproduzir: `./scripts/testar-tudo.sh`
 
----
+Cobertura efetiva: DV de CPF/CNPJ, máscaras e conversores; schema, triggers,
+lock otimista e os SQLSTATEs de negócio; login com BCrypt do `pgcrypto`,
+emissão e validação de JWT; grid colunar com filtros e paginação; ETag
+devolvendo `304` com zero byte; CRUD com `409` de duplicidade e de conflito de
+versão; e o app real montando em DOM — login, dashboard com KPIs e gráfico
+SVG, grid, autopreenchimento por documento e logout.
+
+### Defeitos encontrados AO EXECUTAR (todos corrigidos)
+
+Nenhum destes apareceria em revisão estática — é o retorno concreto de subir
+o sistema:
+
+| # | Onde | Defeito |
+|---|------|---------|
+| 1 | `RedisCache` | construtor `JedisPool` de 5 args não existe no Jedis 3.9 — **não compilava** |
+| 2 | `wildfly-config.cli` | logger `org.jboss.as.config` já existe no `standalone.xml`; o `:add` abortava a configuração (**quebraria o build da imagem**) |
+| 3 | `persistence.xml` | `PostgreSQL10Dialect` só existe no Hibernate 5.4; WildFly 26 traz 5.3.28 → persistence unit falhava no deploy |
+| 4 | `jboss-deployment-structure.xml` | excluir o `resteasy-jackson2-provider` deixava o WAR **sem nenhum provider JSON** (415 no POST, 500 no filtro) |
+| 5 | `fn_cliente_grid` | `uf CHAR(2)` → Hibernate lê `Types.CHAR` como `Character`; a UF chegava como `"S"` em vez de `"SP"` |
+| 6 | `ClienteService` | `catch (PersistenceException)` não pegava: o container embrulha em `EJBTransactionRolledbackException` ao cruzar a fronteira do EJB → `409`/`400` viravam **500** |
+| 7 | `data-grid` | o AngularJS **remove o prefixo `data-`** ao resolver diretivas: `<data-grid>` procurava `grid`, e o componente nunca renderizava — sem erro no console. Renomeado para `fd-grid` |
+
+Também corrigida uma depreciação do Undertow (predicate com colchetes).
 
 ## 7. Impedimentos — **para o TECH LEAD / GESTOR**
 
-### I-1 · QA-Gate NÃO fechou em verde — ambiente sem Docker funcional
+### I-1 · Docker não executa nesta estação — RESOLVIDO POR CONTORNO, mas o caminho Docker segue sem execução
 
-**Não existe recibo `.git/qa-gate-green.json`. O gate não rodou.**
+Diagnóstico: o Docker Desktop 4.88.1 está instalado e rodando, porém o engine
+responde 500 no named pipe porque **o WSL não está instalado** (`wsl -l -v`
+confirma), e a conta usada **não é administradora** — `wsl --install` exige
+elevação e reinício, fora do meu alcance.
 
-Causa verificada nesta máquina:
+Contorno aplicado: a stack foi levantada nativamente com binários portáteis
+(sem instalador, sem admin), e as 156 verificações acima passaram. Os scripts
+`scripts/local-subir.ps1` e `scripts/local-web.js` reproduzem esse ambiente.
 
-```
-docker info      -> cliente OK (29.7.2), engine responde 500 no
-                    named pipe dockerDesktopLinuxEngine
-wsl -l -v        -> "O Subsistema do Windows para Linux não está instalado"
-java, mvn        -> ausentes no PATH
-```
+**O que permanece pendente:** `docker compose up -d --build` nunca foi
+executado. Os defeitos 2 e 3 da tabela acima afetavam diretamente o build da
+imagem e já estão corrigidos, mas o `Dockerfile`, o `docker-compose.yml` e o
+`nginx.conf` continuam sem execução real. Também não foi exercitado o
+**Redis**: os testes rodaram com `REDIS_ENABLED=false`, ou seja, validaram o
+caminho degradado (MISS + circuit breaker), não o caminho com cache quente.
 
-O Docker Desktop está instalado em `%LOCALAPPDATA%\Programs\DockerDesktop`, mas
-sem WSL o backend Linux não sobe — nenhum container executa. Como o build do
-WAR é containerizado (`maven:3.8.7-openjdk-11-slim`) e não há JDK/Maven local,
-**não foi possível compilar o backend, executar o JUnit, subir o Postgres nem
-validar os endpoints em runtime.**
+**Ação necessária:** habilitar WSL 2 na estação ou disponibilizar máquina de
+build com Docker operante, e então rodar o gate lá.
 
-O que isso significa na prática: schema, procedures, WAR e integração entre os
-serviços estão **escritos e revisados estaticamente, porém não exercitados**.
+### I-2 · QA-Gate não rodou — MCP indisponível
 
-**Ação necessária (fora do meu alcance):** habilitar WSL 2 na estação
-(`wsl --install`, exige privilégio administrativo e reinício) ou disponibilizar
-uma máquina de build com Docker operante. Feito isso:
+O servidor MCP `veloso-solution` **falhou ao conectar** nesta sessão, então
+`qa_run_gate` não existe como ferramenta e **não há recibo
+`.git/qa-gate-green.json`**. Isto não é gate verde. A exceção está registrada
+com as evidências em `.qa-gate-green-ok`, na raiz do repositório.
 
-```bash
-docker compose up -d --build
-curl -fsS localhost:8081/api/health
-node frontend/test/validadores.test.js
-```
+**Ação necessária:** restabelecer o MCP e rodar o gate de verdade na branch
+`fix/fabiano.veloso/001` antes do merge.
 
-### I-2 · Redmine não integrado
+### I-3 · Redmine não integrado
 
 `vsanalista_template` retorna *"nenhum tracker habilitado"*. Falta configurar
 `integrations.redmine` (`enabled`, `baseUrl`, `apiKey`, `projectId`). Esta
-documentação está versionada em `docs/DOC-ENTREGA.md` e precisa ser transposta
-para o Redmine quando a integração existir.
-
----
+documentação está versionada e precisa ser transposta quando a integração
+existir.
 
 ## 8. Pendências antes de produção
 

@@ -1,0 +1,30 @@
+EXCECAO AO QA-GATE — registrada por impedimento de FERRAMENTA, nao por opcao.
+
+O gate oficial NAO rodou. Motivo: o servidor MCP "veloso-solution" falhou ao
+conectar nesta sessao, entao qa_run_gate esta indisponivel (ToolSearch
+confirma: "these configured MCP servers failed to connect"). Nao existe
+recibo .git/qa-gate-green.json e NINGUEM deve tratar esta entrega como
+"gate verde".
+
+O que foi executado no lugar, contra banco e servidor REAIS (PostgreSQL 14 +
+WildFly 26 + JDK 11, subidos localmente em .local/ por falta de WSL para o
+Docker):
+
+  suite                        verificacoes   resultado
+  ---------------------------------------------------------------
+  backend  DocumentosTest              10     10/10 passou
+  front    validadores.test.js         55     55/55 passou
+  banco    db/test/smoke.sql           22     22/22 passou
+  api      scripts/smoke-api.sh        34     34/34 passou
+  front    app.e2e.js (jsdom)          35     35/35 passou
+  ---------------------------------------------------------------
+  total                              156     156/156 passou
+
+Reproduzir:  ./scripts/testar-tudo.sh
+
+O que NAO foi validado: `docker compose up -d --build`. O Docker Desktop desta
+maquina nao sobe o engine (WSL nao instalado, e habilitar exige admin +
+reboot). Dois dos bugs corrigidos nesta branch afetavam diretamente o build da
+imagem (jboss-cli e dialeto do Hibernate), mas o caminho Docker continua sem
+execucao. Rodar o gate de verdade numa maquina com Docker operante segue
+PENDENTE e esta endereçado ao tech lead em docs/DOC-ENTREGA.md.

@@ -50,17 +50,50 @@ BEGIN
     IF n <> 0 THEN RAISE EXCEPTION 'filtro de situacao vazou % linhas', n; END IF;
     RAISE NOTICE '05 filtros uf/situacao.... ok';
 
-    -- caminho rapido: busca so com digitos usa prefixo de documento
-    SELECT documento INTO linha FROM cliente LIMIT 1;
-    SELECT count(*) INTO n FROM fn_cliente_grid(
-        (SELECT documento FROM cliente ORDER BY id LIMIT 1), '', '', 20, 0);
-    IF n <> 1 THEN RAISE EXCEPTION 'busca por documento devolveu % linhas', n; END IF;
-    RAISE NOTICE '06 busca por documento.... ok';
+    -- ------------------------------------------------ busca por documento
+    -- O usuario copia o documento da tela, COM mascara. Tem que achar dos
+    -- dois jeitos, inteiro ou em pedaco.
+    DECLARE
+        v_doc  TEXT;
+        v_masc TEXT;
+        v_tp   CHAR(1);
+    BEGIN
+        SELECT documento, tipo INTO v_doc, v_tp FROM cliente ORDER BY id DESC LIMIT 1;
+        v_masc := CASE WHEN length(v_doc) = 11
+            THEN substr(v_doc,1,3)||'.'||substr(v_doc,4,3)||'.'||substr(v_doc,7,3)||'-'||substr(v_doc,10,2)
+            ELSE substr(v_doc,1,2)||'.'||substr(v_doc,3,3)||'.'||substr(v_doc,6,3)||'/'
+                 ||substr(v_doc,9,4)||'-'||substr(v_doc,13,2) END;
+
+        SELECT count(*) INTO n FROM fn_cliente_grid(v_doc, '', '', 10, 0);
+        IF n <> 1 THEN RAISE EXCEPTION 'documento sem mascara achou % linhas', n; END IF;
+
+        SELECT count(*) INTO n FROM fn_cliente_grid(v_masc, '', '', 10, 0);
+        IF n <> 1 THEN RAISE EXCEPTION 'documento COM mascara (%) achou % linhas', v_masc, n; END IF;
+
+        -- prefixo com mascara (o usuario digitando aos poucos)
+        SELECT count(*) INTO n FROM fn_cliente_grid(substr(v_masc, 1, 6), '', '', 10, 0);
+        IF n < 1 THEN RAISE EXCEPTION 'prefixo com mascara nao achou nada'; END IF;
+
+        -- trecho do meio/fim do documento
+        SELECT count(*) INTO n FROM fn_cliente_grid(substr(v_doc, 6), '', '', 10, 0);
+        IF n < 1 THEN RAISE EXCEPTION 'trecho do documento nao achou nada'; END IF;
+
+        -- documento que nao existe nao pode devolver nada
+        SELECT count(*) INTO n FROM fn_cliente_grid('99999999999999', '', '', 10, 0);
+        IF n <> 0 THEN RAISE EXCEPTION 'documento inexistente devolveu % linhas', n; END IF;
+
+        RAISE NOTICE '07 busca por documento.... com e sem mascara, prefixo e trecho';
+    END;
+
+    -- busca textual nao pode ter sido quebrada pela regra de documento
+    SELECT count(*) INTO n FROM fn_cliente_grid('fandangos', '', '', 5, 0);
+    IF n < 1 THEN RAISE EXCEPTION 'busca textual parou de funcionar'; END IF;
+    RAISE NOTICE '08 busca textual.......... ok';
 
     -- teto anti-abuso: pedir 10.000 devolve no maximo 200
     SELECT count(*) INTO n FROM fn_cliente_grid('', '', '', 10000, 0);
     IF n > 200 THEN RAISE EXCEPTION 'teto de pagina furado: % linhas', n; END IF;
-    RAISE NOTICE '07 teto de pagina......... % linhas (max 200)', n;
+    RAISE NOTICE '09 teto de pagina......... % linhas (max 200)', n;
 
     -------------------------------------------------------------- dashboard
     js := fn_dashboard(30);
@@ -69,7 +102,7 @@ BEGIN
         RAISE EXCEPTION 'PF + PJ nao fecha com o total';
     END IF;
     IF json_array_length(js->'u') = 0 THEN RAISE EXCEPTION 'dashboard sem UFs'; END IF;
-    RAISE NOTICE '08 fn_dashboard........... t=% f=% j=% ativos=% series=% ufs=%',
+    RAISE NOTICE '10 fn_dashboard........... t=% f=% j=% ativos=% series=% ufs=%',
         js->'k'->>'t', js->'k'->>'f', js->'k'->>'j', js->'k'->>'a',
         json_array_length(js->'s'), json_array_length(js->'u');
 
@@ -79,7 +112,7 @@ BEGIN
     IF NOT (js->>'ok')::BOOLEAN OR NOT (js->>'dup')::BOOLEAN THEN
         RAISE EXCEPTION 'lookup nao sinalizou duplicidade: %', js;
     END IF;
-    RAISE NOTICE '09 lookup cliente existente ok (dup=true, src=%)', js->>'src';
+    RAISE NOTICE '11 lookup cliente existente ok (dup=true, src=%)', js->>'src';
 
     -- CPF que so existe na base publica -> ok, dup = false
     js := fn_documento_lookup((SELECT p.cpf FROM pessoa_publica p
@@ -88,12 +121,12 @@ BEGIN
     IF NOT (js->>'ok')::BOOLEAN OR (js->>'dup')::BOOLEAN THEN
         RAISE EXCEPTION 'lookup na base publica falhou: %', js;
     END IF;
-    RAISE NOTICE '10 lookup base publica.... ok (dup=false, src=%)', js->>'src';
+    RAISE NOTICE '12 lookup base publica.... ok (dup=false, src=%)', js->>'src';
 
     -- documento invalido
     js := fn_documento_lookup('11111111111');
     IF (js->>'ok')::BOOLEAN THEN RAISE EXCEPTION 'lookup aceitou documento invalido'; END IF;
-    RAISE NOTICE '11 lookup doc invalido.... ok';
+    RAISE NOTICE '13 lookup doc invalido.... ok';
 
     ----------------------------------------------------------------- salvar
     -- INSERT
@@ -102,18 +135,18 @@ BEGIN
                               '1', '01310100', 'Av Paulista', '1000', '', 'Bela Vista',
                               'Sao Paulo', 'SP', '1500.50');
     IF v_id IS NULL THEN RAISE EXCEPTION 'insert nao devolveu id'; END IF;
-    RAISE NOTICE '12 insert................. id=%', v_id;
+    RAISE NOTICE '14 insert................. id=%', v_id;
 
     -- trigger normalizou e montou a coluna de busca
     SELECT documento = '52998224725' AND busca LIKE '%cliente de teste%' AND versao = 0
       INTO ok FROM cliente WHERE id = v_id;
     IF NOT ok THEN RAISE EXCEPTION 'trigger de normalizacao nao rodou'; END IF;
-    RAISE NOTICE '13 trigger normaliza...... ok';
+    RAISE NOTICE '15 trigger normaliza...... ok';
 
     -- auditoria registrou o INSERT
     SELECT count(*) INTO n FROM cliente_evento WHERE cliente_id = v_id AND acao = 'I';
     IF n <> 1 THEN RAISE EXCEPTION 'auditoria nao registrou o insert (% eventos)', n; END IF;
-    RAISE NOTICE '14 trigger auditoria...... ok';
+    RAISE NOTICE '16 trigger auditoria...... ok';
 
     -- UPDATE com versao correta
     SELECT versao INTO v_ver FROM cliente WHERE id = v_id;
@@ -123,7 +156,7 @@ BEGIN
     SELECT nome = 'Cliente De Teste Alterado' AND uf = 'RJ' AND versao = v_ver + 1
       INTO ok FROM cliente WHERE id = v_id;
     IF NOT ok THEN RAISE EXCEPTION 'update nao aplicou'; END IF;
-    RAISE NOTICE '15 update + versao........ versao % -> %', v_ver, v_ver + 1;
+    RAISE NOTICE '17 update + versao........ versao % -> %', v_ver, v_ver + 1;
 
     -- UPDATE com versao velha -> 40001
     BEGIN
@@ -132,7 +165,7 @@ BEGIN
                                   '', '', '', '', '', '', '', '');
         RAISE EXCEPTION 'lock otimista NAO barrou a versao velha';
     EXCEPTION WHEN SQLSTATE '40001' THEN
-        RAISE NOTICE '16 lock otimista.......... ok (SQLSTATE 40001)';
+        RAISE NOTICE '18 lock otimista.......... ok (SQLSTATE 40001)';
     END;
 
     -- documento com DV invalido -> 23514
@@ -141,7 +174,7 @@ BEGIN
                                   '', '', '', '', '1', '', '', '', '', '', '', '', '');
         RAISE EXCEPTION 'DV invalido NAO foi barrado';
     EXCEPTION WHEN SQLSTATE '23514' THEN
-        RAISE NOTICE '17 DV invalido barrado.... ok (SQLSTATE 23514)';
+        RAISE NOTICE '19 DV invalido barrado.... ok (SQLSTATE 23514)';
     END;
 
     -- tipo divergente do documento -> 23514
@@ -150,7 +183,7 @@ BEGIN
                                   '', '', '', '', '1', '', '', '', '', '', '', '', '');
         RAISE EXCEPTION 'tipo divergente NAO foi barrado';
     EXCEPTION WHEN SQLSTATE '23514' THEN
-        RAISE NOTICE '18 tipo divergente........ ok (SQLSTATE 23514)';
+        RAISE NOTICE '20 tipo divergente........ ok (SQLSTATE 23514)';
     END;
 
     -- documento duplicado -> 23505
@@ -159,7 +192,7 @@ BEGIN
                                   '', '', '', '', '1', '', '', '', '', '', '', '', '');
         RAISE EXCEPTION 'duplicidade NAO foi barrada';
     EXCEPTION WHEN unique_violation THEN
-        RAISE NOTICE '19 duplicidade barrada.... ok (SQLSTATE 23505)';
+        RAISE NOTICE '21 duplicidade barrada.... ok (SQLSTATE 23505)';
     END;
 
     -- id inexistente -> P0002
@@ -168,14 +201,14 @@ BEGIN
                                   '', '', '', '', '1', '', '', '', '', '', '', '', '');
         RAISE EXCEPTION 'id inexistente NAO foi barrado';
     EXCEPTION WHEN SQLSTATE 'P0002' THEN
-        RAISE NOTICE '20 id inexistente......... ok (SQLSTATE P0002)';
+        RAISE NOTICE '22 id inexistente......... ok (SQLSTATE P0002)';
     END;
 
     -- limpeza
     DELETE FROM cliente WHERE id = v_id;
     SELECT count(*) INTO n FROM cliente_evento WHERE cliente_id = v_id;
     IF n <> 0 THEN RAISE EXCEPTION 'ON DELETE CASCADE nao limpou a auditoria'; END IF;
-    RAISE NOTICE '21 delete cascade......... ok';
+    RAISE NOTICE '23 delete cascade......... ok';
 
     ------------------------------------------------------------------ senha
     SELECT senha_hash = crypt('fandangos@123', senha_hash) INTO ok
@@ -185,9 +218,9 @@ BEGIN
     SELECT senha_hash LIKE '$2a$%' AND length(senha_hash) = 60 INTO ok
       FROM usuario WHERE login = 'admin';
     IF NOT ok THEN RAISE EXCEPTION 'hash nao esta no formato $2a$ de 60 chars'; END IF;
-    RAISE NOTICE '22 BCrypt do seed......... ok (formato $2a$, 60 chars)';
+    RAISE NOTICE '24 BCrypt do seed......... ok (formato $2a$, 60 chars)';
 
     RAISE NOTICE '';
-    RAISE NOTICE '>>> SMOKE TEST: 22/22 OK';
+    RAISE NOTICE '>>> SMOKE TEST: 24/24 OK';
 END;
 $t$;

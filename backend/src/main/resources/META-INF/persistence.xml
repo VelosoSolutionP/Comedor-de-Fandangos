@@ -11,6 +11,7 @@
 
         <class>br.com.fandangos.domain.Cliente</class>
         <class>br.com.fandangos.domain.Usuario</class>
+        <class>br.com.fandangos.domain.Produto</class>
         <exclude-unlisted-classes>true</exclude-unlisted-classes>
 
         <shared-cache-mode>NONE</shared-cache-mode>

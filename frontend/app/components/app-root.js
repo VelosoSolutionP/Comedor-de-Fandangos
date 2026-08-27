@@ -19,7 +19,9 @@
             '    <nav class="nav">',
             '      <a href="#/dashboard" ng-class="{ativo: v.rota === \'/dashboard\'}">Dashboard</a>',
             '      <a href="#/clientes" ng-class="{ativo: v.rotaClientes}">Clientes</a>',
-            '      <a href="#/clientes/novo" class="nav-acao">+ Novo cliente</a>',
+            '      <a href="#/produtos" ng-class="{ativo: v.rotaProdutos}">Produtos</a>',
+            '      <a href="#/clientes/novo" class="nav-acao">+ Cliente</a>',
+            '      <a href="#/produtos/novo" class="nav-acao">+ Produto</a>',
             '    </nav>',
             '    <div class="usuario">',
             '      <span class="usuario-nome">{{v.nome}}</span>',
@@ -82,6 +84,7 @@
                 minutos: minutos,
                 rota: caminho,
                 rotaClientes: caminho.indexOf('/clientes') === 0,
+                rotaProdutos: caminho.indexOf('/produtos') === 0,
                 sair: function () {
                     window.Store.sair();
                     window.Store.ok('Voce saiu do sistema.');

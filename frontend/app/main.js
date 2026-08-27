@@ -8,7 +8,9 @@
         .rota('/login',         'route-login',        { publico: true, titulo: 'Entrar' })
         .rota('/dashboard',     'route-dashboard',    { titulo: 'Dashboard' })
         .rota('/clientes',      'route-clientes',     { titulo: 'Clientes' })
-        .rota('/clientes/:id',  'route-cliente-form', { titulo: 'Cadastro de cliente' });
+        .rota('/clientes/:id',  'route-cliente-form', { titulo: 'Cadastro de cliente' })
+        .rota('/produtos',      'route-produtos',     { titulo: 'Produtos' })
+        .rota('/produtos/:id',  'route-produto-form', { titulo: 'Cadastro de produto' });
 
     // sessao caiu em qualquer aba -> todas voltam para o login
     window.addEventListener('storage', function (e) {

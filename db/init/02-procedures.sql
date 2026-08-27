@@ -105,19 +105,39 @@ DECLARE
     v_uf    CHAR(2)  := NULLIF(upper(btrim(COALESCE(p_uf, ''))), '')::CHAR(2);
     v_sit   SMALLINT := NULLIF(btrim(COALESCE(p_sit, '')), '')::SMALLINT;
     v_digit TEXT;
+    v_ehDoc BOOLEAN;
 BEGIN
     p_lim := LEAST(GREATEST(COALESCE(p_lim, 20), 1), 200);  -- teto anti-abuso
     p_off := GREATEST(COALESCE(p_off, 0), 0);
     v_digit := NULLIF(regexp_replace(COALESCE(v_q, ''), '[^0-9]', '', 'g'), '');
 
-    IF v_q IS NOT NULL AND v_digit IS NOT NULL AND length(v_digit) = length(v_q) THEN
-        -- caminho rapido: prefixo de documento no indice unico
+    -- "Parece documento" = so digitos e a pontuacao de CPF/CNPJ.
+    -- O usuario copia o documento da tela, COM mascara: exigir que o termo
+    -- fosse apenas digitos fazia "12.142.600/0001-73" nao achar nada.
+    v_ehDoc := v_q IS NOT NULL AND v_digit IS NOT NULL AND v_q ~ '^[0-9./ -]+$';
+
+    IF v_ehDoc AND length(v_digit) IN (11, 14) THEN
+        -- documento completo: igualdade direta no indice unico
         RETURN QUERY
             SELECT c.id, c.nome, c.documento,
                    c.uf::VARCHAR(2), c.tipo::VARCHAR(1), c.situacao,
                    count(*) OVER ()::BIGINT
               FROM cliente c
-             WHERE c.documento LIKE v_digit || '%'
+             WHERE c.documento = v_digit
+               AND (v_uf  IS NULL OR c.uf = v_uf)
+               AND (v_sit IS NULL OR c.situacao = v_sit)
+             ORDER BY c.id DESC
+             LIMIT p_lim OFFSET p_off;
+
+    ELSIF v_ehDoc THEN
+        -- documento parcial: prefixo pelo btree, ou trecho no meio pelo
+        -- trigram (a coluna 'busca' guarda o documento sem pontuacao)
+        RETURN QUERY
+            SELECT c.id, c.nome, c.documento,
+                   c.uf::VARCHAR(2), c.tipo::VARCHAR(1), c.situacao,
+                   count(*) OVER ()::BIGINT
+              FROM cliente c
+             WHERE (c.documento LIKE v_digit || '%' OR c.busca LIKE '%' || v_digit || '%')
                AND (v_uf  IS NULL OR c.uf = v_uf)
                AND (v_sit IS NULL OR c.situacao = v_sit)
              ORDER BY c.id DESC

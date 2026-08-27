@@ -252,3 +252,13 @@ legend { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color
     .conteudo { padding: 12px; }
     .campo-md, .campo-sm, .campo-lg { width: 100%; flex: 1 1 100%; min-width: 0; }
 }
+
+/* ------------------------------------------------------- grid de produtos */
+.grid .col-sku { width: 110px; }
+.grid .col-cat { width: 120px; }
+.grid .col-num { width: 110px; text-align: right; }
+.grid th.col-num { text-align: right; }
+/* linha de produto que precisa de reposicao: destaque discreto, sem gritar */
+.grid tbody tr.linha-alerta td:first-child { box-shadow: inset 3px 0 0 var(--vermelho); }
+.grid tbody tr.linha-alerta { background: #fffaf7; }
+.grid tbody tr.linha-alerta:hover { background: #fff4ee; }

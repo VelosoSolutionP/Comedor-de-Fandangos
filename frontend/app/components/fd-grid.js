@@ -1,5 +1,10 @@
 /* ============================================================================
- *  data-grid.js  -  tabela paginada.
+ *  fd-grid.js  -  tabela paginada.
+ *
+ *  ATENCAO ao nome: NAO pode se chamar <data-grid>. O compilador do AngularJS
+ *  remove os prefixos "data-" e "x-" dos nomes antes de procurar a diretiva,
+ *  entao <data-grid> vira uma busca por uma diretiva "grid" e o componente
+ *  simplesmente nao renderiza - sem erro no console. Por isso o prefixo fd-.
  *
  *  Recebe os itens JA expandidos do formato colunar (Http.expandirGrid).
  *  Usa `track by` no ng-repeat: sem isso o AngularJS recria toda a <tr> a
@@ -12,7 +17,7 @@
 
     var SITUACOES = { 0: 'Inativo', 1: 'Ativo', 2: 'Bloqueado' };
 
-    FdReact.componente('data-grid', {
+    FdReact.componente('fd-grid', {
         props: ['itens', 'total', 'pagina', 'tamanho', 'carregando'],
         eventos: ['aoAbrir', 'aoExcluir', 'aoPaginar'],
 

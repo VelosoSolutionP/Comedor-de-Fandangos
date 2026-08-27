@@ -82,7 +82,7 @@ function servir(req, res) {
     });
 }
 
-http.createServer((req, res) => {
+function tratar(req, res) {
     if (req.url.startsWith('/api/')) {
         repassar(req, res);
     } else if (req.url === '/healthz') {
@@ -91,7 +91,31 @@ http.createServer((req, res) => {
     } else {
         servir(req, res);
     }
-}).listen(PORTA, () => {
-    console.log('front em  http://127.0.0.1:' + PORTA);
-    console.log('api  via  ' + ALVO.origin + '/api');
+}
+
+/*
+ * Dois listeners de proposito.
+ *
+ * listen(porta) sozinho liga so em "::" e depende do dual-stack do SO para
+ * atender IPv4. Nem todo Windows entrega isso, e o resultado e o pior tipo de
+ * bug: curl em 127.0.0.1 responde, mas o navegador diz que nao alcanca a
+ * pagina. Ligar explicitamente em 0.0.0.0 e em ::1 tira a duvida.
+ */
+const alvos = [
+    { host: '0.0.0.0', rotulo: 'IPv4' },
+    { host: '::1', rotulo: 'IPv6' }
+];
+
+alvos.forEach(({ host, rotulo }) => {
+    const srv = http.createServer(tratar);
+    srv.on('error', (e) => {
+        // EADDRINUSE em um dos dois nao e fatal: o outro atende
+        console.log('[' + rotulo + '] nao subiu (' + e.code + ')');
+    });
+    srv.listen(PORTA, host, () => {
+        console.log('[' + rotulo + '] escutando em ' + host + ':' + PORTA);
+    });
 });
+
+console.log('front em  http://localhost:' + PORTA);
+console.log('api  via  ' + ALVO.origin + '/api');

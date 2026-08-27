@@ -76,6 +76,27 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.3.2</version>
+                <configuration>
+                    <!--
+                      O front entra dentro do WAR.
+
+                      Em producao quem serve os estaticos e o nginx, e assim
+                      continua. Mas embutir aqui faz o WildFly sozinho
+                      entregar a aplicacao inteira em http://host:8080/ - util
+                      para desenvolver, para um ambiente sem nginx e para
+                      testar API e tela na MESMA origem (sem CORS no meio).
+                    -->
+                    <webResources>
+                        <resource>
+                            <directory>${project.basedir}/../frontend</directory>
+                            <excludes>
+                                <exclude>test/**</exclude>
+                                <exclude>Dockerfile</exclude>
+                                <exclude>nginx.conf</exclude>
+                            </excludes>
+                        </resource>
+                    </webResources>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

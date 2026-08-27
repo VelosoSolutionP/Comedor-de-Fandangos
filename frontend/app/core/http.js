@@ -190,6 +190,39 @@
             return api.delete('/clientes/' + id);
         },
 
+        /* ------------------------------------------------- produtos */
+
+        produtos: function (filtros) {
+            return getCancelavel('gridProduto', '/produtos', filtros).then(function (r) {
+                return window.Http.expandirGrid(r.data);
+            });
+        },
+
+        produto: function (id) {
+            return api.get('/produtos/' + id).then(function (r) { return r.data; });
+        },
+
+        salvarProduto: function (dto) {
+            limparCache('/produtos');
+            return dto.id
+                ? api.put('/produtos/' + dto.id, dto).then(function () { return dto.id; })
+                : api.post('/produtos', dto).then(function (r) { return r.data.id; });
+        },
+
+        excluirProduto: function (id) {
+            limparCache('/produtos');
+            return api.delete('/produtos/' + id);
+        },
+
+        /** combo de categorias: muda pouco, cache de 5 min em memoria */
+        categoriasProduto: function () {
+            return getCacheado('/produtos/categorias', null, 300000);
+        },
+
+        kpisProduto: function () {
+            return getCacheado('/produtos/kpis', null, 20000);
+        },
+
         lookup: function (documento) {
             return api.get('/lookup/' + documento).then(function (r) { return r.data; });
         },

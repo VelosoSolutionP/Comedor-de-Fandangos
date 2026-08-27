@@ -57,6 +57,20 @@ chk "grid: filtro de UF"             200 "$(status -H "$A" "$B/clientes?uf=SP&sz
 chk "grid: busca textual"            200 "$(status -H "$A" "$B/clientes?q=fandangos&sz=5")"
 chk "grid: teto de pagina (sz=9999)" 200 "$(status -H "$A" "$B/clientes?sz=9999")"
 
+# busca por documento: o usuario copia da tela, COM mascara
+DOC_TESTE=$(curl -s -H "$A" "$B/clientes?sz=1" | sed 's/.*,"\([0-9]\{11,14\}\)",.*/\1/')
+if [ "${#DOC_TESTE}" = "14" ]; then
+    MASC="${DOC_TESTE:0:2}.${DOC_TESTE:2:3}.${DOC_TESTE:5:3}/${DOC_TESTE:8:4}-${DOC_TESTE:12:2}"
+else
+    MASC="${DOC_TESTE:0:3}.${DOC_TESTE:3:3}.${DOC_TESTE:6:3}-${DOC_TESTE:9:2}"
+fi
+achou() { curl -s -H "$A" --get --data-urlencode "q=$1" "$B/clientes?sz=1" | sed 's/.*"t":\([0-9]*\).*/\1/'; }
+chk "busca: documento sem mascara"   1 "$(achou "$DOC_TESTE")"
+chk "busca: documento COM mascara"   1 "$(achou "$MASC")"
+chk "busca: prefixo com mascara"     1 "$(achou "${MASC:0:6}")"
+chk "busca: trecho do documento"     1 "$(achou "${DOC_TESTE:5}")"
+chk "busca: documento inexistente"   0 "$(achou "99999999999999")"
+
 # ------------------------------------------------------------ dashboard
 curl -s -H "$A" -D /tmp/fdg_h.txt -o /tmp/fdg_d.json "$B/dash?d=30"
 ETAG=$(grep -i '^etag:' /tmp/fdg_h.txt | tr -d '\r' | cut -d' ' -f2)

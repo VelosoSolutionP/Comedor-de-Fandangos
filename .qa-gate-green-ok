@@ -14,13 +14,16 @@ Docker):
   ---------------------------------------------------------------
   backend  DocumentosTest              10     10/10 passou
   front    validadores.test.js         55     55/55 passou
-  banco    db/test/smoke.sql           22     22/22 passou
-  api      scripts/smoke-api.sh        34     34/34 passou
+  banco    db/test/smoke.sql           24     24/24 passou
+  api      scripts/smoke-api.sh        39     39/39 passou
   front    app.e2e.js (jsdom)          35     35/35 passou
+  front    produtos.e2e.js (jsdom)     23     23/23 passou
   ---------------------------------------------------------------
-  total                              156     156/156 passou
+  total                              186     186/186 passou
 
 Reproduzir:  ./scripts/testar-tudo.sh
+
+Cobre os dois modulos: cadastro de clientes e catalogo de produtos.
 
 O que NAO foi validado: `docker compose up -d --build`. O Docker Desktop desta
 maquina nao sobe o engine (WSL nao instalado, e habilitar exige admin +

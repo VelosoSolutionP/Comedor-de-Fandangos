@@ -46,7 +46,7 @@ formato `$2a$` — o mesmo que o jBCrypt lê no Java.
 ## O que tem dentro
 
 ```
-db/init/           schema, procedures e carga (rodam na criação do volume)
+db/init/           schema, procedures e carga de clientes e produtos
 backend/           WAR Jakarta EE 8 (javax.*) para WildFly
   src/main/java/br/com/fandangos/
     cache/         Redis com circuit breaker e invalidação O(1)
@@ -61,7 +61,7 @@ backend/           WAR Jakarta EE 8 (javax.*) para WildFly
 frontend/
   app/core/        fd-react (hooks), router, http (axios), máscaras, validações
   app/components/  kpi-card, bar-chart, fd-grid, campo-form, toast, app-root
-  app/routes/      login, dashboard, clientes, cliente-form, 404
+  app/routes/      login, dashboard, clientes, produtos, formulários, 404
   test/            validadores (node puro) + e2e do app (jsdom)
 db/test/           smoke das procedures
 scripts/           smoke da API, roda-tudo, subida local sem Docker
@@ -134,6 +134,25 @@ funcionando manualmente (`LOOKUP_EXTERNO=false` desliga o passo 3).
 
 ---
 
+## Catálogo de produtos
+
+Segundo módulo, mesma arquitetura do cadastro de clientes: escrita por
+procedure, grid colunar, lock otimista e busca com debounce.
+
+- **Busca inteligente**: termo sem espaço e alfanumérico entra pelo índice
+  único de SKU; o resto vai pelo trigram sobre nome, SKU e categoria.
+- **Alerta de reposição**: o filtro *Repor estoque* mostra só quem está no
+  mínimo ou abaixo. O índice que serve esse filtro é **parcial** — numa base
+  de 100 mil SKUs com 200 em falta, ele guarda 200 linhas, não 100 mil.
+- **Margem bruta ao vivo** no formulário, com aviso quando o custo alcança o
+  preço de venda.
+- SKU normalizado para maiúsculo no cliente e no banco; duplicidade volta `409`.
+
+O `fn_dashboard_produto` devolve os KPIs de estoque (total, ativos,
+descontinuados, a repor, valor imobilizado e top categorias) num JSON só.
+
+---
+
 ## API
 
 Tudo abaixo de `/api`. Exceto `login` e `health`, exige `Authorization: Bearer`.
@@ -149,11 +168,18 @@ Tudo abaixo de `/api`. Exceto `login` e `health`, exige `Authorization: Bearer`.
 | `PUT`    | `/clientes/{id}`         | `204`                                     |
 | `DELETE` | `/clientes/{id}`         | `204`                                     |
 | `GET`    | `/lookup/{doc}`          | autopreenchimento                         |
+| `GET`    | `/produtos?q&cat&sit&rep&pg&sz` | catálogo, grid colunar             |
+| `GET`    | `/produtos/{id}`         | produto completo                          |
+| `POST`   | `/produtos`              | `201` + `{id}`                            |
+| `PUT`    | `/produtos/{id}`         | `204`                                     |
+| `DELETE` | `/produtos/{id}`         | `204`                                     |
+| `GET`    | `/produtos/categorias`   | combo com contagem                        |
+| `GET`    | `/produtos/kpis`         | KPIs de estoque                           |
 | `GET`    | `/health`                | estado de banco e cache                   |
 
 Erros voltam como `{"e":"mensagem","c":"CODIGO"}`. Códigos estáveis:
 `DOC_INVALIDO`, `DOC_DUPLICADO`, `VERSAO_CONFLITO`, `NAO_ENCONTRADO`,
-`CREDENCIAL_INVALIDA`, `MUITAS_TENTATIVAS`.
+`CREDENCIAL_INVALIDA`, `MUITAS_TENTATIVAS`, `SKU_DUPLICADO`, `SKU_INVALIDO`.
 
 ```bash
 TOKEN=$(curl -s localhost:8081/api/auth/login \
@@ -169,7 +195,7 @@ curl -s localhost:8081/api/lookup/52998224725 -H "Authorization: Bearer $TOKEN"
 
 ## Testes
 
-Cinco suítes, **156 verificações**, todas executadas contra banco e servidor
+Seis suítes, **186 verificações**, todas executadas contra banco e servidor
 de verdade:
 
 ```bash
@@ -180,9 +206,10 @@ de verdade:
 |---|-------|-------------|---------|
 | 1 | `DocumentosTest` (JUnit) | DV de CPF/CNPJ, repetidos, tamanhos, nulo, máscara | 10 |
 | 2 | `frontend/test/validadores.test.js` | validadores e máscaras do front, espelhando o Java | 55 |
-| 3 | `db/test/smoke.sql` | schema, procedures, triggers, lock otimista, SQLSTATEs, BCrypt | 22 |
-| 4 | `scripts/smoke-api.sh` | todos os endpoints, 401/400/404/409, ETag/304 | 34 |
+| 3 | `db/test/smoke.sql` | schema, procedures, triggers, lock otimista, SQLSTATEs, BCrypt | 24 |
+| 4 | `scripts/smoke-api.sh` | todos os endpoints, 401/400/404/409, ETag/304, busca por documento | 39 |
 | 5 | `frontend/test/app.e2e.js` | app real em jsdom: login → dashboard → grid → formulário → logout | 35 |
+| 6 | `frontend/test/produtos.e2e.js` | catálogo: menu, filtros, busca por SKU, cadastro, margem, duplicidade | 23 |
 
 As suítes 3, 4 e 5 precisam da stack no ar. A 5 precisa de `jsdom`
 (`npm install jsdom`; use `NODE_PATH` se instalar fora do projeto).
@@ -204,8 +231,15 @@ rodar a mesma stack com binários portáteis, sem instalador e sem admin:
 
 ```powershell
 .\.localaixar.ps1              # JDK 11, Maven, PostgreSQL e WildFly em .local.\scripts\local-subir.ps1 -Build # compila, faz deploy e sobe o WildFly
-node scripts\local-web.js        # serve o front e faz o proxy de /api (papel do nginx)
 ```
+
+Pronto: **http://localhost:8080** serve a aplicação inteira. O front vai
+embutido no WAR (`maven-war-plugin` → `webResources`), então o WildFly sozinho
+entrega tela e API na mesma origem, sem nginx e sem CORS no meio.
+
+Se preferir separar front e API como em produção, `node scripts/local-web.js`
+sobe um servidor estático com proxy de `/api` na porta 8081 — é o papel que o
+nginx cumpre no `docker-compose`.
 
 O banco precisa ser iniciado e populado uma vez (`initdb`, `pg_ctl start`, e os
 três scripts de `db/init` na ordem). O Redis é opcional: com

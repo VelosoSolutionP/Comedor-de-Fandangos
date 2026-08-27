@@ -30,7 +30,7 @@ registrar() {
 }
 
 # ------------------------------------------------------- 1) testes do backend
-secao "1/5  JUnit (backend)"
+secao "1/6  JUnit (backend)"
 # -f e nao -x: no Windows um .cmd nao tem bit de execucao
 if [ -f "$LOCAL/maven/apache-maven-3.9.9/bin/mvn.cmd" ] || command -v mvn >/dev/null 2>&1; then
     if [ -d "$LOCAL/jdk/jdk11" ]; then
@@ -49,12 +49,12 @@ else
 fi
 
 # ------------------------------------------------ 2) validadores do front
-secao "2/5  Validadores do front (node, sem dependencia)"
+secao "2/6  Validadores do front (node, sem dependencia)"
 node "$RAIZ/frontend/test/validadores.test.js"
 registrar "validadores CPF/CNPJ, mascaras, formulario" $?
 
 # ----------------------------------------------------- 3) procedures do banco
-secao "3/5  Smoke das procedures (PostgreSQL)"
+secao "3/6  Smoke das procedures (PostgreSQL)"
 PSQL=""
 if [ -x "$LOCAL/postgres/pgsql/bin/psql.exe" ]; then
     PSQL="$LOCAL/postgres/pgsql/bin/psql.exe"
@@ -64,18 +64,18 @@ fi
 if [ -n "$PSQL" ]; then
     "$PSQL" -h "${PGHOST:-127.0.0.1}" -p "${PGPORT:-5432}" -U "${PGUSER:-fandangos}" \
             -d "${PGDATABASE:-fandangos}" -v ON_ERROR_STOP=1 -q -f "$RAIZ/db/test/smoke.sql"
-    registrar "22 checagens de schema/procedures/triggers" $?
+    registrar "24 checagens de schema/procedures/triggers" $?
 else
     resumo+=("  PULOU psql nao encontrado")
 fi
 
 # -------------------------------------------------------------- 4) API REST
-secao "4/5  Smoke da API REST"
+secao "4/6  Smoke da API REST"
 bash "$RAIZ/scripts/smoke-api.sh" "$API"
-registrar "34 checagens de endpoint" $?
+registrar "39 checagens de endpoint" $?
 
 # ---------------------------------------------------------- 5) e2e do front
-secao "5/5  E2E do front (jsdom)"
+secao "5/6  E2E do front (jsdom)"
 if [ -d "$LOCAL/jstest/node_modules/jsdom" ]; then
     NODE_PATH="$LOCAL/jstest/node_modules" node "$RAIZ/frontend/test/app.e2e.js" "$WEB"
     registrar "35 checagens de interface" $?
@@ -84,6 +84,18 @@ elif node -e "require.resolve('jsdom')" >/dev/null 2>&1; then
     registrar "35 checagens de interface" $?
 else
     resumo+=("  PULOU jsdom nao instalado (npm install jsdom)")
+fi
+
+# ------------------------------------------------------ 6) e2e de produtos
+secao "6/6  E2E do modulo de produtos (jsdom)"
+if [ -d "$LOCAL/jstest/node_modules/jsdom" ]; then
+    NODE_PATH="$LOCAL/jstest/node_modules" node "$RAIZ/frontend/test/produtos.e2e.js" "$WEB"
+    registrar "23 checagens do catalogo de produtos" $?
+elif node -e "require.resolve('jsdom')" >/dev/null 2>&1; then
+    node "$RAIZ/frontend/test/produtos.e2e.js" "$WEB"
+    registrar "23 checagens do catalogo de produtos" $?
+else
+    resumo+=("  PULOU jsdom nao instalado")
 fi
 
 # ------------------------------------------------------------------ resumo

@@ -4,9 +4,9 @@
 |-------------|-------|
 | Repositório | https://github.com/VelosoSolutionP/Comedor-de-Fandangos |
 | Branch      | `fix/fabiano.veloso/001` (a partir de `origin/main`) |
-| Commits     | `df0aad2` entrega inicial · `d758908` correcao de 7 bugs + 156 testes |
+| Commits     | `df0aad2` entrega inicial · `d758908` 7 bugs + testes · `ddac11f` catalogo de produtos |
 | Data        | 27/08/2026 |
-| Escopo      | Backend + Frontend + Banco + Infra (entrega inicial completa) |
+| Escopo      | Backend + Frontend + Banco + Infra · 2 modulos: clientes e produtos |
 | Volume      | 75 arquivos na entrega inicial + 19 alterados na correcao |
 
 > **Redmine não integrado neste ambiente.** `vsanalista_template` retornou
@@ -211,6 +211,49 @@ o sistema:
 | 7 | `data-grid` | o AngularJS **remove o prefixo `data-`** ao resolver diretivas: `<data-grid>` procurava `grid`, e o componente nunca renderizava — sem erro no console. Renomeado para `fd-grid` |
 
 Também corrigida uma depreciação do Undertow (predicate com colchetes).
+
+## 6.1 Modulo de produtos (entregue em `ddac11f`)
+
+**Banco** — tabela `produto` com CHECKs de dominio (SKU, unidade, preco,
+estoque), lock otimista e trigger de normalizacao. Quatro indices, com
+destaque para o **parcial** de reposicao (`WHERE estoque <= estoque_min AND
+situacao = 1`): numa base de 100 mil SKUs com 200 em falta, ele guarda 200
+linhas. Procedures `fn_produto_grid` (pagina + total numa passada; SKU pelo
+indice unico, texto pelo trigram), `fn_produto_salvar`,
+`fn_produto_categorias` e `fn_dashboard_produto`. Seed de 120 produtos, 17
+abaixo do minimo para o alerta nascer util.
+
+**API** — CRUD em `/api/produtos`, mais `/produtos/categorias` e
+`/produtos/kpis`, cacheados no Redis por versao de namespace. SKU duplicado
+volta `409` (`SKU_DUPLICADO`), nao 500.
+
+**Tela** — rotas `/produtos` e `/produtos/novo` no menu principal, filtro
+*Repor estoque*, busca por SKU ou nome com debounce e cancelamento, e margem
+bruta calculada ao vivo com aviso de margem negativa.
+
+**Front dentro do WAR** — o `maven-war-plugin` passou a embutir `frontend/` no
+`fandangos.war`. O WildFly sozinho serve tela e API na mesma origem em
+`http://host:8080`, sem nginx e sem CORS. O nginx do `docker-compose` continua
+sendo o caminho de producao.
+
+**Cobertura** — 186 verificacoes, todas verdes:
+
+| Suite | Verificacoes |
+|-------|-------------:|
+| `DocumentosTest` (JUnit) | 10 |
+| `validadores.test.js` | 55 |
+| `db/test/smoke.sql` | 24 |
+| `scripts/smoke-api.sh` | 39 |
+| `app.e2e.js` | 35 |
+| `produtos.e2e.js` | 23 |
+| **Total** | **186** |
+
+Mais dois defeitos corrigidos no caminho: a busca por CPF/CNPJ **com mascara**
+nao achava nada (o usuario copia o documento da tela, com pontuacao), e o
+servidor local do front escutava so em IPv6, entao `curl` respondia mas o
+navegador nao alcancava a pagina.
+
+---
 
 ## 7. Impedimentos — **para o TECH LEAD / GESTOR**
 
